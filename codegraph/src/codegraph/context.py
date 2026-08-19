@@ -51,7 +51,7 @@ PROSE_WORDS = frozenset({
     "changes", "update", "fix", "bug", "issue", "error", "help", "look", "check", "review",
     "here", "your", "yours", "using", "used", "uses", "work", "works", "working", "call",
     "calls", "called", "read", "write", "line", "lines", "name", "value", "values", "type",
-    "types", "return", "returns", "python", "javascript", "typescript", "please", "thanks",
+    "types", "return", "returns", "python", "javascript", "typescript", "thanks",
 })
 
 
@@ -73,7 +73,7 @@ class Detection:
 class Index:
     """The compact detection index, loaded from ``index.json``."""
 
-    __slots__ = ("files", "file_set", "basenames", "symbols", "roots", "counts", "built_at")
+    __slots__ = ("basenames", "built_at", "counts", "file_set", "files", "roots", "symbols")
 
     def __init__(self, payload: dict[str, Any]) -> None:
         self.files: list[str] = payload.get("files", [])
@@ -85,7 +85,7 @@ class Index:
         self.built_at: float = payload.get("built_at", 0.0)
 
     @classmethod
-    def load(cls, path: Path) -> "Index":
+    def load(cls, path: Path) -> Index:
         return cls(json.loads(Path(path).read_text(encoding="utf-8")))
 
     def resolve_path(self, candidate: str) -> str | None:
@@ -266,7 +266,8 @@ def _symbol_section(graph: Graph, symbol: str, seen: set[str], depth: int = 2) -
     for node_id in matches[:2]:
         node = graph.nodes[node_id]
         seen.add(node_id)
-        location = f"{node.get('source_file', '?')}{' ' + node.get('source_location', '') if node.get('source_location') else ''}"
+        where = node.get("source_location", "")
+        location = f"{node.get('source_file', '?')}{' ' + where if where else ''}"
         lines.append(f"{node.get('label', node_id)} - {location} (deg {graph.degree(node_id)})")
 
         callers = graph.blast_radius(node_id, depth=depth, limit=10)

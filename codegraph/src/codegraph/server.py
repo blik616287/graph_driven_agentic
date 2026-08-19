@@ -28,11 +28,14 @@ import subprocess
 import sys
 import time
 import traceback
+from collections.abc import Callable
+from itertools import pairwise
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from . import __version__
-from .annotate import Annotation, AnnotationStore, apply as apply_annotations
+from .annotate import Annotation, AnnotationStore
+from .annotate import apply as apply_annotations
 from .build import graph_path, index_path
 from .config import Config, find_workspace
 from .context import Index, context_for, detect
@@ -306,7 +309,7 @@ def _shortest_path(workspace: Workspace, args: dict[str, Any]) -> dict[str, Any]
     target = _resolve_node(graph, _require(args, "target"))
     path = graph.shortest_path(source, target)
     hops = []
-    for left, right in zip(path, path[1:]):
+    for left, right in pairwise(path):
         edge = next(
             (e for e in graph.outgoing(left) if e["target"] == right),
             next((e for e in graph.incoming(left) if e["source"] == right), {}),
@@ -510,7 +513,8 @@ def _rebuild_graph(workspace: Workspace, args: dict[str, Any]) -> dict[str, Any]
     completed = subprocess.run(command, capture_output=True, text=True, env=env, timeout=900)
     if completed.returncode != 0:
         raise ToolError(
-            "rebuild failed: " + (completed.stderr or completed.stdout or "no output").strip()[-600:]
+            "rebuild failed: "
+            + (completed.stderr or completed.stdout or "no output").strip()[-600:]
         )
     return {"rebuilt": True, "output": completed.stdout.strip()[-1500:]}
 
@@ -571,13 +575,16 @@ class Server:
         if method == "initialize":
             requested = str(params.get("protocolVersion", PROTOCOL_VERSION))
             self.initialised = True
+            root_names = [root.name for root in self.workspace.config().roots] or ["(no roots)"]
             self.reply(request_id, {
-                "protocolVersion": requested if requested in SUPPORTED_PROTOCOLS else PROTOCOL_VERSION,
+                "protocolVersion": (
+                    requested if requested in SUPPORTED_PROTOCOLS else PROTOCOL_VERSION
+                ),
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "codegraph", "version": __version__},
                 "instructions": (
                     "Deterministic AST knowledge graph over "
-                    f"{', '.join(self.workspace.config().roots and [r.name for r in self.workspace.config().roots] or ['(no roots)'])}. "
+                    f"{', '.join(root_names)}. "
                     "Call context_for_paths before editing files, impact_of before "
                     "changing a shared symbol, and add_to_graph to record decisions "
                     "the parser cannot see."
@@ -614,7 +621,7 @@ class Server:
                 "content": [{"type": "text", "text": f"error: {exc}"}],
                 "isError": True,
             })
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             print(traceback.format_exc(), file=sys.stderr)
             self.reply(request_id, {
                 "content": [{"type": "text", "text": f"internal error in {name}: {exc}"}],

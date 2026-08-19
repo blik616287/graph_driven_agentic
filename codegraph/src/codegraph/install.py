@@ -21,8 +21,9 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from . import __version__
 
@@ -171,9 +172,8 @@ def install_platform(platform: str, workspace: Path, scope: str = "project") -> 
 
     if platform == "claude":
         yield _merge_json(workspace / ".mcp.json", {"mcpServers": {"codegraph": server}})
-        settings = (
-            workspace / ".claude" / ("settings.json" if scope == "project" else "settings.local.json")
-        )
+        filename = "settings.json" if scope == "project" else "settings.local.json"
+        settings = workspace / ".claude" / filename
         yield _merge_json(settings, {"hooks": hooks_config(workspace)})
         yield _write_markdown_block(workspace / "CLAUDE.md", GUIDANCE)
         yield "   note: as a plugin instead, run `/plugin marketplace add <this-repo>` "

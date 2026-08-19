@@ -27,7 +27,8 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .annotate import AnnotationStore, apply as apply_annotations
+from .annotate import AnnotationStore
+from .annotate import apply as apply_annotations
 from .backends import get_backend
 from .backends.base import BackendError
 from .config import Config
@@ -150,7 +151,11 @@ def build(
         namespaced_graph.save(cached)
         per_root.append(namespaced_graph)
         report.roots[root.name] = {
-            "path": str(root_dir.relative_to(workspace)) if _under(root_dir, workspace) else str(root_dir),
+                "path": (
+                    str(root_dir.relative_to(workspace))
+                    if _under(root_dir, workspace)
+                    else str(root_dir)
+                ),
             "nodes": len(namespaced_graph.nodes),
             "edges": len(namespaced_graph.edges),
             "stale": False,

@@ -18,7 +18,6 @@ from codegraph.synthetic import (
     root_prefixes,
     symbol_bucket,
 )
-
 from conftest import make_graph
 
 
