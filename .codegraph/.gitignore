@@ -1,0 +1,12 @@
+# Derived - rebuilt by `codegraph build`.
+graph.json
+graph.json.tmp
+index.json
+index.json.tmp
+state.json
+roots/
+
+# Kept in version control: config.json and annotations.jsonl hold facts
+# that cannot be regenerated from source.
+!config.json
+!annotations.jsonl

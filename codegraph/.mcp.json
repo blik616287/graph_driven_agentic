@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "codegraph": {
+      "command": "python3",
+      "args": [
+        "-m", "codegraph",
+        "--workspace", "${CLAUDE_PROJECT_DIR}",
+        "serve"
+      ],
+      "env": {
+        "PYTHONPATH": "${CLAUDE_PLUGIN_ROOT}/src"
+      }
+    }
+  }
+}

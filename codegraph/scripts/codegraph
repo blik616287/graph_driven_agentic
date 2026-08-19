@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# codegraph launcher - resolves the package without requiring an install.
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PYTHONPATH="$here/../src${PYTHONPATH:+:$PYTHONPATH}" \
+  exec "${CODEGRAPH_PYTHON:-python3}" -m codegraph "$@"

@@ -1,0 +1,108 @@
+# APM (Agent Package Manager) manifest - https://github.com/microsoft/apm
+#
+# APM is to agent context what npm is to JavaScript: one manifest declaring the
+# skills, instructions, hooks and MCP servers an agent needs, resolved and
+# reproduced across machines and clients with `apm install`.
+#
+# This manifest publishes codegraph as an APM package. The same directory is
+# also a valid Claude Code plugin (.claude-plugin/plugin.json) - the two
+# packaging formats describe the same primitives, so one tree serves both.
+#
+# APM's schema is still moving. Anything below that a given APM version does not
+# recognise is ignored rather than fatal, and `make install-claude` /
+# `codegraph install --platform <name>` remain the fallback for any client APM
+# does not cover.
+
+name: codegraph
+version: 0.3.0
+description: >-
+  Deterministic multi-root code knowledge graph served over MCP, with hooks that
+  inject structural context before each prompt and keep the graph current after
+  each edit. AST-only: no embeddings, no model calls on the build path.
+
+author:
+  name: Martin Forde
+  email: mforde84@gmail.com
+  organization: bliklabs
+license: MIT
+homepage: https://github.com/bliklabs/codegraph
+keywords: [code-graph, mcp, ast, context-engineering, knowledge-graph, hooks]
+
+# --- what this package contributes to an agent ------------------------------
+provides:
+  mcp:
+    - name: codegraph
+      transport: stdio
+      command: python3
+      args: ["-m", "codegraph", "--workspace", "${WORKSPACE}", "serve"]
+      env:
+        PYTHONPATH: "${PACKAGE_ROOT}/src"
+      description: >-
+        Query the code graph: context_for_paths, impact_of, shortest_path,
+        find_symbol, get_node, plus add_to_graph / link_locations for recording
+        facts the parser cannot derive.
+
+  skills:
+    - path: ./skills/codegraph/SKILL.md
+      name: codegraph-context
+      description: >-
+        Orient with the graph before editing; check blast radius before changing
+        a shared symbol; record durable facts about the codebase.
+
+  commands:
+    - path: ./commands/codegraph.md
+      name: codegraph
+
+  hooks:
+    - event: UserPromptSubmit
+      command: python3 "${PACKAGE_ROOT}/scripts/codegraph-prompt-hook" --workspace "${WORKSPACE}"
+      timeout: 10
+      description: >-
+        Detects references to indexed code in the prompt and injects a compact
+        structural briefing. Exits silently when the prompt touches no code.
+
+    - event: PostToolUse
+      matcher: "Write|Edit|MultiEdit|NotebookEdit"
+      command: python3 "${PACKAGE_ROOT}/scripts/codegraph-edit-hook" --workspace "${WORKSPACE}"
+      timeout: 120
+      async: true
+      description: >-
+        Incrementally re-parses the edited root so the graph never lags the code.
+        Debounced and lock-guarded so a burst of edits triggers one rebuild.
+
+  instructions:
+    - path: ./docs/AGENT_INSTRUCTIONS.md
+      description: How an agent should read edge origins and when to record facts.
+
+# --- runtime requirements ---------------------------------------------------
+requires:
+  python: ">=3.10"
+
+# The MCP server and both hooks are standard-library only, by design: they must
+# start under whatever interpreter the assistant launches them with. Only the
+# graph *builder* needs a backend, installed into a local venv by `make install`.
+setup:
+  - name: install-backend
+    description: Create the venv and install the graphify extraction backend.
+    command: make -C "${PACKAGE_ROOT}" install
+    optional: false
+
+  - name: init-workspace
+    description: Index the current repository and build the first graph.
+    command: make -C "${PACKAGE_ROOT}" init ROOT="${WORKSPACE}" WORKSPACE="${WORKSPACE}"
+    optional: true
+
+# --- third-party backends ---------------------------------------------------
+# Fetched from PyPI by `make install`, not vendored here. Their licenses are
+# reproduced in THIRD_PARTY_NOTICES.md.
+backends:
+  - name: graphify
+    package: graphifyy
+    license: Apache-2.0
+    default: true
+    upstream: https://github.com/Graphify-Labs/graphify
+  - name: code-review-graph
+    package: code-review-graph
+    license: MIT
+    default: false
+    upstream: https://github.com/tirth8205/code-review-graph

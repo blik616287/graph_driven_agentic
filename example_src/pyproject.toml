@@ -1,0 +1,42 @@
+[project]
+name = "marketd"
+version = "1.4.0"
+description = "A miniature trading venue, written to be read"
+requires-python = ">=3.11"
+dependencies = []                 # the point is that this stays empty
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+
+[project.scripts]
+marketd = "marketd.__main__:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Async tests are run by a hook in tests/conftest.py rather than a plugin.
+filterwarnings = ["error::DeprecationWarning"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "B", "C4", "SIM", "UP", "RET", "PIE", "PERF"]
+ignore = [
+    # `try: await task / except CancelledError: pass` around a cancelled task is
+    # the idiomatic asyncio spelling and says plainly what is being awaited and
+    # why.  contextlib.suppress hides that from the reader.
+    "SIM105",
+    # asyncio.TimeoutError is an alias of TimeoutError on 3.11+, but spelling it
+    # with the module says which subsystem raised it.
+    "UP041",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The nested `if` guarding fill-or-kill carries a comment between the two
+# conditions; flattening it would strip the explanation.
+"marketd/core/matching.py" = ["SIM102"]
+# Building the log payload in a loop keeps the reserved-field filter readable.
+"marketd/telemetry/logging.py" = ["PERF403"]
+# The demo formats aligned console output; wrapping those lines hurts it.
+"demo.py" = ["E501"]

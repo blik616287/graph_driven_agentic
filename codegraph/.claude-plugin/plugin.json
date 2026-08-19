@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "codegraph",
+  "displayName": "codegraph",
+  "version": "0.3.0",
+  "description": "Deterministic multi-root code knowledge graph over MCP, with hooks that inject structural context on every prompt and keep the graph current on every edit.",
+  "author": {
+    "name": "Martin Forde",
+    "email": "mforde84@gmail.com",
+    "url": "https://github.com/bliklabs"
+  },
+  "license": "MIT",
+  "keywords": ["code-graph", "mcp", "ast", "context", "knowledge-graph", "hooks"],
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
+  "commands": ["./commands/codegraph.md"],
+  "skills": "./skills/",
+  "userConfig": {
+    "backend_python": {
+      "type": "string",
+      "title": "Backend interpreter",
+      "description": "Python that has graphify or code-review-graph installed. Leave empty to use the venv created by `make install`.",
+      "required": false
+    },
+    "context_budget": {
+      "type": "number",
+      "title": "Prompt context budget (tokens)",
+      "description": "Cap on graph context injected before each prompt.",
+      "default": 1800,
+      "min": 200,
+      "max": 8000
+    }
+  }
+}

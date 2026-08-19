@@ -1,0 +1,92 @@
+# ---------------------------------------------------------------- Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Virtual environments. codegraph/.venv holds the graph backend, which is
+# installed by `make install` and never committed.
+.venv/
+venv/
+ENV/
+env/
+
+# ---------------------------------------------------------------- tooling
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+junit.xml
+*.log
+
+# ------------------------------------------------------- codegraph output
+# The graph is derived: `codegraph build` regenerates all of it in ~1s.
+# config.json and annotations.jsonl are NOT ignored - they hold the roots you
+# chose and the facts you asserted, neither of which can be recovered from
+# source. See .codegraph/.gitignore, which states the same split locally.
+.codegraph/graph.json
+.codegraph/index.json
+.codegraph/state.json
+.codegraph/roots/
+.codegraph/*.tmp
+.codegraph/rebuild.lock
+.codegraph/pending.json
+
+# Backend artifacts. graphify writes these next to the source unless
+# GRAPHIFY_OUT is redirected; ignored so a stray run cannot dirty the tree.
+graphify-out/
+.code-review-graph/
+
+# ------------------------------------------------- assistant local config
+# `make install-claude` generates these with THIS machine's interpreter and
+# absolute paths baked in ("/home/you/..."), so committing them would hand a
+# teammate config that points at a Python they do not have. They are derived -
+# regenerate after cloning with `make install-claude`.
+#
+# The portable way to share the same wiring is the plugin itself, which IS
+# committed: codegraph/.claude-plugin/ and codegraph/.mcp.json use
+# ${CLAUDE_PLUGIN_ROOT} / ${CLAUDE_PROJECT_DIR} instead of absolute paths.
+#
+# CLAUDE.md is committed - it is prose and contains no machine-specific paths.
+/.mcp.json
+/.claude/settings.json
+/.claude/settings.local.json
+/.claude/*.local.json
+/.claude/.credentials.json
+/.cursor/
+/.gemini/
+*.codegraph-backup
+
+# ---------------------------------------------------------------- secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------------------------------------------------------------- editors
+.idea/
+*.swp
+*.swo
+*~
+.vscode/*
+!.vscode/mcp.json
+!.vscode/extensions.json
+
+# ------------------------------------------------------------------- os
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+desktop.ini

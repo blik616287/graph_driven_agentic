@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "backend": "graphify",
+  "roots": [
+    {
+      "name": "example_src",
+      "path": "example_src",
+      "include": [],
+      "exclude": [
+        ".git",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "dist",
+        "build",
+        ".codegraph",
+        "graphify-out"
+      ],
+      "language_hint": ""
+    },
+    {
+      "name": "client",
+      "path": "codegraph/examples/marketd-client",
+      "include": [],
+      "exclude": [
+        ".git",
+        ".venv",
+        "venv",
+        "node_modules",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        "dist",
+        "build",
+        ".codegraph",
+        "graphify-out"
+      ],
+      "language_hint": ""
+    }
+  ],
+  "synthetic": {
+    "shared_symbol": true,
+    "mirrored_path": true,
+    "min_symbol_length": 5,
+    "max_symbol_fanout": 8,
+    "explicit": []
+  },
+  "hook_context_budget": 1800,
+  "hook_max_paths": 6,
+  "rebuild_debounce_seconds": 2.0
+}

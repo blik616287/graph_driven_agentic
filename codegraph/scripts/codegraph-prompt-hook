@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""UserPromptSubmit hook: inject graph context when a prompt touches the code.
+
+Reads the hook payload on stdin, decides whether the prompt references anything
+in the indexed codebases, and if so returns a compact structural briefing as
+``additionalContext``.
+
+Three properties matter more than anything this hook could add:
+
+**It must be fast.**  It runs before every single prompt.  The common case - a
+prompt that mentions no indexed code - is answered from a small index file and
+exits in about a millisecond, without ever loading the graph.
+
+**It must fail open.**  A hook that errors is a hook that breaks the user's
+session.  Every failure path here exits 0 with no output; a missing graph, a
+corrupt index, or an unexpected exception all mean "no context this time",
+never "your prompt is blocked".
+
+**It must not crowd out the prompt.**  Context is capped by a token budget from
+config.  The user's question is the point; this is a footnote to it.
+
+Set ``CODEGRAPH_HOOK_DEBUG=1`` to send diagnostics to stderr.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+# The hook is launched by the assistant, not by a shell that has been set up, so
+# the package has to be located relative to this file.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+DEBUG = os.environ.get("CODEGRAPH_HOOK_DEBUG") == "1"
+
+
+def log(message: str) -> None:
+    if DEBUG:
+        print(f"[codegraph-prompt-hook] {message}", file=sys.stderr)
+
+
+def emit(context: str = "", system_message: str = "") -> None:
+    """Emit the hook result and exit successfully, always."""
+    payload = {}
+    if context:
+        payload["additionalContext"] = context
+    if system_message:
+        payload["systemMessage"] = system_message
+    if payload:
+        print(json.dumps(payload))
+    sys.exit(0)
+
+
+def main() -> None:
+    started = time.perf_counter()
+    try:
+        raw = sys.stdin.read()
+        event = json.loads(raw) if raw.strip() else {}
+    except (json.JSONDecodeError, OSError) as exc:
+        log(f"unreadable hook payload: {exc}")
+        emit()
+
+    prompt = str(event.get("user_input") or event.get("prompt") or "")
+    if len(prompt.strip()) < 4:
+        emit()
+
+    workspace = resolve_workspace(event)
+    if workspace is None:
+        log("no codegraph workspace found")
+        emit()
+
+    try:
+        from codegraph.build import index_path
+        from codegraph.config import Config
+        from codegraph.context import Index, context_for, detect
+        from codegraph.model import Graph
+    except ImportError as exc:
+        log(f"codegraph not importable: {exc}")
+        emit()
+
+    index_file = index_path(workspace)
+    if not index_file.exists():
+        log(f"no index at {index_file} - run `codegraph build`")
+        emit()
+
+    try:
+        index = Index.load(index_file)
+        config = Config.load_or_default(workspace)
+        detection = detect(
+            prompt, index, max_files=config.hook_max_paths, max_symbols=config.hook_max_paths + 2
+        )
+        if not detection:
+            log(f"no code references ({(time.perf_counter() - started) * 1000:.1f}ms)")
+            emit()
+
+        # Only now is it worth loading the full graph.
+        graph = Graph.load(workspace / ".codegraph" / "graph.json")
+        context = context_for(
+            graph,
+            files=detection.files,
+            symbols=detection.symbols,
+            budget=config.hook_context_budget,
+        )
+    except Exception as exc:  # noqa: BLE001 - fail open, never break the session
+        log(f"context lookup failed: {type(exc).__name__}: {exc}")
+        emit()
+
+    if not context:
+        emit()
+
+    elapsed = (time.perf_counter() - started) * 1000
+    log(f"injected {len(context)} chars in {elapsed:.1f}ms")
+    hits = ", ".join(detection.files + detection.symbols)
+    emit(
+        context=context,
+        system_message=f"codegraph: added context for {hits}" if DEBUG else "",
+    )
+
+
+def resolve_workspace(event: dict) -> Path | None:
+    """Find the workspace, preferring an explicit flag, then the hook's cwd."""
+    argv = sys.argv[1:]
+    if "--workspace" in argv:
+        candidate = Path(argv[argv.index("--workspace") + 1]).expanduser()
+        if (candidate / ".codegraph").is_dir():
+            return candidate.resolve()
+
+    for start in (event.get("cwd"), os.environ.get("CLAUDE_PROJECT_DIR"), os.getcwd()):
+        if not start:
+            continue
+        current = Path(start).resolve()
+        for candidate in [current, *current.parents]:
+            if (candidate / ".codegraph").is_dir():
+                return candidate
+    return None
+
+
+if __name__ == "__main__":
+    main()

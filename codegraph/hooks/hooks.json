@@ -1,0 +1,31 @@
+{
+  "description": "codegraph: inject graph context on prompts, refresh the graph on edits",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/codegraph-prompt-hook\" --workspace \"${CLAUDE_PROJECT_DIR}\"",
+            "timeout": 10,
+            "statusMessage": "codegraph: looking up context..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/codegraph-edit-hook\" --workspace \"${CLAUDE_PROJECT_DIR}\"",
+            "timeout": 120,
+            "async": true,
+            "statusMessage": "codegraph: refreshing graph..."
+          }
+        ]
+      }
+    ]
+  }
+}

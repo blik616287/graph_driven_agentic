@@ -1,0 +1,1 @@
+{"author": "agent", "created_at": 1787179090.6059709, "id": "ann_1a01c2cc2ad", "kind": "note", "links_to": "", "relation": "annotates", "revoked": false, "root": "", "tags": [], "target": "example_src/marketd/core/matching.py:90", "text": "FOK is checked before any unit moves. Unwinding a partially applied match is not implemented, and must not become necessary."}
