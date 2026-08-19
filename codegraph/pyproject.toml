@@ -1,0 +1,54 @@
+[project]
+name = "codegraph"
+version = "0.3.0"
+description = "Deterministic multi-root code knowledge graph for coding agents"
+requires-python = ">=3.10"
+# Intentionally empty. The MCP server and both hooks must run under whatever
+# interpreter a coding assistant launches them with; the graph *backend* is
+# installed separately into a venv by `make install`.
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+
+[project.scripts]
+codegraph = "codegraph.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: exercises a real extraction backend (needs `make install`)",
+]
+
+# Pinned explicitly rather than left to ruff's defaults. Defaults change between
+# ruff releases, so a bare `ruff check` passes locally and fails in CI on a newer
+# version - which is exactly what happened. Lint has to be reproducible.
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "scripts", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "B", "C4", "SIM", "UP", "RET", "PIE", "PERF", "I", "RUF"]
+ignore = [
+    # `try: await task / except CancelledError: pass` around a cancelled task is
+    # the idiomatic asyncio spelling and names what is being awaited.
+    "SIM105",
+    # asyncio.TimeoutError is an alias of TimeoutError on 3.11+, but the module
+    # prefix says which subsystem raised it.
+    "UP041",
+    # __all__ reads better grouped by meaning than sorted alphabetically.
+    "RUF022",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests bind fixtures they do not always consume, and assert on long literals.
+"tests/*" = ["RUF059", "E501"]
+# The demo formats aligned console output.
+"scripts/demo.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["codegraph"]

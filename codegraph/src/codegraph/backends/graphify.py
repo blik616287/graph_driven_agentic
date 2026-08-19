@@ -93,7 +93,8 @@ class GraphifyBackend(Backend):
 
 
 def _llm_env_note() -> str:
-    keys = [k for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY") if os.environ.get(k)]
+    known = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY")
+    keys = [name for name in known if os.environ.get(name)]
     if keys:
         return (
             "\nnote: codegraph always passes --code-only, so the failure is not a "

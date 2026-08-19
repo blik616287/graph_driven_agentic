@@ -29,11 +29,21 @@ make install-claude             # MCP server + both hooks + CLAUDE.md
 From then on, a prompt that mentions indexed code gets a structural briefing
 before the model sees it, and every `Write`/`Edit` refreshes the graph.
 
-Those three commands are also what you run **after cloning**: the graph and the
-generated assistant config (`.mcp.json`, `.claude/settings.json`) are derived and
-machine-specific, so they are not in version control. What *is* committed is the
-plugin itself and `.codegraph/config.json` — the roots and rules — so a clone
-rebuilds to the same graph.
+**After cloning**, the roots are already in `.codegraph/config.json`, so skip
+`init` and just build:
+
+```bash
+cd codegraph
+make install          # the backend venv is not committed
+make build            # rebuild the graph from the committed config
+make install-claude   # regenerate the assistant wiring for your machine
+```
+
+The graph and the generated assistant config (`.mcp.json`,
+`.claude/settings.json`) are derived and machine-specific — they bake in
+absolute paths — so they are not in version control. The plugin itself and
+`.codegraph/config.json` are, which is what lets a clone rebuild to the same
+graph.
 
 Run the example service on its own:
 

@@ -66,7 +66,7 @@ class AnnotationStore:
         """
         if not self.path.exists():
             return []
-        known = {f for f in Annotation.__slots__}
+        known = set(Annotation.__slots__)
         by_id: dict[str, Annotation] = {}
         for line in self.path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
@@ -94,7 +94,12 @@ class AnnotationStore:
 
 def clear_annotations(graph: Graph) -> int:
     dropped = graph.drop_edges(lambda edge: edge.get("_origin") == ANNOTATION_ORIGIN)
-    for node_id in [n for n, node in graph.nodes.items() if node.get("_origin") == ANNOTATION_ORIGIN]:
+    stale = [
+        node_id
+        for node_id, node in graph.nodes.items()
+        if node.get("_origin") == ANNOTATION_ORIGIN
+    ]
+    for node_id in stale:
         del graph.nodes[node_id]
     graph.invalidate()
     return dropped

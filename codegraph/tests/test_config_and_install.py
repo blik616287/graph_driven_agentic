@@ -208,7 +208,7 @@ def test_install_backs_up_unparseable_json(tmp_path):
     assert (tmp_path / ".mcp.json.codegraph-backup").exists()
 
 
-@pytest.mark.parametrize("platform", [p for p in PLATFORMS])
+@pytest.mark.parametrize("platform", list(PLATFORMS))
 def test_every_platform_installs_without_error(tmp_path, platform):
     lines = list(install_platform(platform, tmp_path))
     assert not any(line.startswith("!!") for line in lines), lines

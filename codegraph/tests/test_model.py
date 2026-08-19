@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-
 from codegraph.model import Graph, namespaced, normalise_path, split_namespace
 
 

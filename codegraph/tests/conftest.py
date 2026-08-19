@@ -11,21 +11,24 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from codegraph.backends.base import Backend  # noqa: E402
-from codegraph.config import Config, Root  # noqa: E402
-from codegraph.model import Graph  # noqa: E402
+from codegraph.backends.base import Backend
+from codegraph.config import Config, Root
+from codegraph.model import Graph
 
 
 class FakeBackend(Backend):
     """Returns a canned graph per directory name. Deterministic, instant."""
 
     name = "fake"
-    graphs: dict[str, Graph] = {}
+    # Shared on purpose: tests register canned graphs here, and the class is the
+    # registry. Reset per test by whichever fixture populates it.
+    graphs: ClassVar[dict[str, Graph]] = {}
 
     def probe(self) -> str:
         return "fake ready"

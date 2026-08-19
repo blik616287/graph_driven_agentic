@@ -10,7 +10,6 @@ from codegraph.backends.base import BackendError
 from codegraph.build import build, index_path, load_state
 from codegraph.config import Config, Root
 from codegraph.model import Graph
-
 from conftest import FakeBackend
 
 
@@ -150,8 +149,9 @@ def test_build_with_no_roots_is_refused(tmp_path):
 
 
 def test_annotations_are_reapplied_by_build(two_roots, tmp_path):
-    from codegraph.annotate import Annotation, AnnotationStore
     import time
+
+    from codegraph.annotate import Annotation, AnnotationStore
 
     workspace, config = two_roots
     store = AnnotationStore(workspace / ".codegraph")

@@ -107,7 +107,12 @@ def translate(payload: dict[str, Any], source_root: Path | None = None) -> Graph
         target = str(entry.get("target") or entry.get("to") or "")
         if not source or not target:
             continue
-        raw_relation = str(entry.get("relationship") or entry.get("type") or entry.get("relation") or "uses")
+        raw_relation = str(
+            entry.get("relationship")
+            or entry.get("type")
+            or entry.get("relation")
+            or "uses"
+        )
         graph.add_edge(
             source,
             target,

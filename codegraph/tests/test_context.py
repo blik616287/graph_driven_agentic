@@ -133,8 +133,9 @@ def test_synthetic_links_are_marked_in_the_output(server_graph, client_graph):
 
 
 def test_asserted_notes_are_marked_in_the_output(tmp_path, server_graph):
-    from codegraph.annotate import Annotation, AnnotationStore, apply
     import time
+
+    from codegraph.annotate import Annotation, AnnotationStore, apply
 
     graph = server_graph.namespace_to("server")
     store = AnnotationStore(tmp_path)

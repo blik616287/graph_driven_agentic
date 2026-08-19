@@ -24,9 +24,10 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Iterator
+from typing import Any
 
 NAMESPACE_SEP = "::"
 
@@ -74,12 +75,12 @@ class Graph:
 
     # ------------------------------------------------------------------ io
     @classmethod
-    def load(cls, path: Path | str) -> "Graph":
+    def load(cls, path: Path | str) -> Graph:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
         return cls.from_node_link(raw)
 
     @classmethod
-    def from_node_link(cls, raw: dict[str, Any]) -> "Graph":
+    def from_node_link(cls, raw: dict[str, Any]) -> Graph:
         # Accept both spellings: networkx renamed "links" to "edges" in 3.4.
         link_key = "links" if "links" in raw else "edges"
         nodes: dict[str, dict[str, Any]] = {}
@@ -272,7 +273,7 @@ class Graph:
         return before - len(self.edges)
 
     # -------------------------------------------------------------- merging
-    def namespace_to(self, root: str) -> "Graph":
+    def namespace_to(self, root: str) -> Graph:
         """Return a copy with every id qualified by ``root``."""
         mapping = {node_id: namespaced(root, node_id) for node_id in self.nodes}
         nodes = {}
@@ -288,15 +289,16 @@ class Graph:
             # backend resolved a call to something it never indexed.  Keep them
             # namespaced so the dangling end stays attributable to this root.
             clone = dict(edge)
-            clone["source"] = mapping.get(edge.get("source"), namespaced(root, str(edge.get("source"))))
-            clone["target"] = mapping.get(edge.get("target"), namespaced(root, str(edge.get("target"))))
+            source_id, target_id = edge.get("source"), edge.get("target")
+            clone["source"] = mapping.get(source_id, namespaced(root, str(source_id)))
+            clone["target"] = mapping.get(target_id, namespaced(root, str(target_id)))
             clone["root"] = root
             clone.setdefault("_origin", "ast")
             edges.append(clone)
         return Graph(nodes=nodes, edges=edges, meta=dict(self.meta))
 
     @classmethod
-    def merge(cls, graphs: Iterable["Graph"], meta: dict[str, Any] | None = None) -> "Graph":
+    def merge(cls, graphs: Iterable[Graph], meta: dict[str, Any] | None = None) -> Graph:
         """Union of already-namespaced graphs.
 
         Namespacing makes this a plain union: ids cannot collide across roots,

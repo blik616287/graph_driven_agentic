@@ -7,8 +7,8 @@ switch from graphify to code-review-graph without touching anything else.
 """
 
 from .base import Backend, BackendError, BackendUnavailable
-from .graphify import GraphifyBackend
 from .crg import CodeReviewGraphBackend
+from .graphify import GraphifyBackend
 
 REGISTRY: dict[str, type[Backend]] = {
     GraphifyBackend.name: GraphifyBackend,
@@ -30,9 +30,11 @@ def available_backends(**kwargs) -> dict[str, str]:
     """Map backend name -> status string.  Used by ``codegraph doctor``."""
     status = {}
     for name, cls in REGISTRY.items():
+        # Per-backend try/except: doctor's whole job is to report which backends
+        # are broken, so one unavailable backend must not hide the others.
         try:
             status[name] = cls(**kwargs).probe()
-        except Exception as exc:  # noqa: BLE001 - doctor reports, never raises
+        except Exception as exc:  # noqa: PERF203
             status[name] = f"error: {exc}"
     return status
 

@@ -124,11 +124,12 @@ def _is_linkable_symbol(node: dict, normalised: str, rules: SyntheticRules) -> b
         return False
     # File-to-file correspondence is the mirrored_path rule's job; letting this
     # rule also match filenames produces a duplicate edge with worse evidence.
-    if node.get("file_type") == "code" and label.lower().endswith(
-        (".py", ".ts", ".js", ".go", ".rs", ".java", ".rb", ".c", ".cpp", ".md")
-    ):
-        return False
-    return True
+    return not (
+        node.get("file_type") == "code"
+        and label.lower().endswith(
+            (".py", ".ts", ".js", ".go", ".rs", ".java", ".rb", ".c", ".cpp", ".md")
+        )
+    )
 
 
 def _link_shared_symbols(graph: Graph, rules: SyntheticRules) -> int:

@@ -23,7 +23,8 @@ import time
 from pathlib import Path
 
 from . import __version__
-from .annotate import Annotation, AnnotationStore, apply as apply_annotations
+from .annotate import Annotation, AnnotationStore
+from .annotate import apply as apply_annotations
 from .backends import available_backends
 from .build import build, index_path, load_state
 from .config import Config, Root, find_workspace
@@ -48,7 +49,8 @@ def cmd_init(args) -> int:
     for raw in args.paths or []:
         path = Path(raw)
         name = args.name or _slug(path)
-        relative = path.resolve().relative_to(workspace) if _under(path.resolve(), workspace) else path.resolve()
+        resolved = path.resolve()
+        relative = resolved.relative_to(workspace) if _under(resolved, workspace) else resolved
         try:
             config.add_root(Root(name=name, path=str(relative)))
         except ValueError as exc:
@@ -60,7 +62,8 @@ def cmd_init(args) -> int:
     print(f"{BOLD}codegraph workspace{RESET} {workspace}")
     print(f"  config  {saved}")
     print(f"  backend {config.backend}")
-    print(f"  roots   {[r.name for r in config.roots] or '(none yet - use `codegraph add-root PATH`)'}")
+    names = [root.name for root in config.roots] or "(none yet - use `codegraph add-root PATH`)"
+    print(f"  roots   {names}")
     if config.roots:
         print("\nnext: codegraph build")
     return 0
@@ -146,7 +149,8 @@ def cmd_status(args) -> int:
         return 0
     print(f"  graph   {payload['nodes']} nodes, {payload['edges']} edges, "
           f"{payload.get('files', 0)} files, {payload['age_seconds']}s old")
-    for name, count in (payload.get("roots") or {}).items() if isinstance(payload.get("roots"), dict) else []:
+    root_counts = payload.get("roots") or {}
+    for name, count in (root_counts.items() if isinstance(root_counts, dict) else []):
         print(f"    root {name}: {count} nodes")
     origins = payload.get("edge_origins", {})
     if origins:
@@ -205,7 +209,8 @@ def cmd_link(args) -> int:
         graph = Graph.load(graph_file)
         apply_annotations(graph, store.all())
         graph.save(graph_file)
-    print(f"{BOLD}linked{RESET} {args.source} --{args.relation}--> {args.target}  ({annotation.id})")
+    print(f"{BOLD}linked{RESET} {args.source} --{args.relation}--> {args.target}")
+    print(f"  {annotation.id}")
     return 0
 
 
@@ -214,7 +219,8 @@ def cmd_annotations(args) -> int:
     store = AnnotationStore(Config.dir_for(workspace))
     if args.revoke:
         ok = store.revoke(args.revoke)
-        print(f"revoked {args.revoke}" if ok else f"no annotation {args.revoke}", file=sys.stderr if not ok else sys.stdout)
+        message = f"revoked {args.revoke}" if ok else f"no annotation {args.revoke}"
+        print(message, file=sys.stdout if ok else sys.stderr)
         return 0 if ok else 1
     entries = store.all()
     if args.json:
@@ -246,7 +252,8 @@ def cmd_doctor(args) -> int:
     print(f"  workspace  {workspace}")
 
     config_file = Config.path_for(workspace)
-    print(f"  config     {'ok ' + str(config_file) if config_file.exists() else 'MISSING - run `codegraph init`'}")
+    config_state = f"ok {config_file}" if config_file.exists() else "MISSING - run `codegraph init`"
+    print(f"  config     {config_state}")
 
     backend_python = args.backend_python or os.environ.get("CODEGRAPH_BACKEND_PYTHON")
     print(f"  backend py {backend_python or sys.executable}")
@@ -257,7 +264,7 @@ def cmd_doctor(args) -> int:
         ok = ok or not status.startswith("error")
         print(f"  {marker}{name}: {status}")
     if not ok:
-        print(f"\n  {DIM}no backend available - run `make install` in the codegraph directory{RESET}")
+        print(f"\n  {DIM}no backend available - run `make install`{RESET}")
 
     if config_file.exists():
         config = Config.load(workspace)
@@ -269,14 +276,15 @@ def cmd_doctor(args) -> int:
         if graph_file.exists():
             stats = Graph.load(graph_file).stats()
             age = time.time() - graph_file.stat().st_mtime
-            print(f"\n{BOLD}graph{RESET}\n  {stats['nodes']} nodes, {stats['edges']} edges, {age:.0f}s old")
+            print(f"\n{BOLD}graph{RESET}")
+            print(f"  {stats['nodes']} nodes, {stats['edges']} edges, {age:.0f}s old")
         else:
             print(f"\n{BOLD}graph{RESET}\n  not built - run `codegraph build`")
     return 0 if ok else 1
 
 
 def cmd_install(args) -> int:
-    from .install import install_platform, PLATFORMS
+    from .install import PLATFORMS, install_platform
 
     workspace = _workspace(args)
     targets = args.platform or ["claude"]
@@ -291,7 +299,8 @@ def cmd_install(args) -> int:
 
 def _slug(path: Path) -> str:
     name = path.resolve().name or "root"
-    return "".join(char if (char.isalnum() or char in "-_") else "-" for char in name).strip("-").lower()
+    cleaned = "".join(char if (char.isalnum() or char in "-_") else "-" for char in name)
+    return cleaned.strip("-").lower()
 
 
 def _under(path: Path, parent: Path) -> bool:

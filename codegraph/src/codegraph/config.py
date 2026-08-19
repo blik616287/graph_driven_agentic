@@ -79,7 +79,7 @@ class Config:
         return Config.dir_for(workspace) / CONFIG_FILENAME
 
     @classmethod
-    def load(cls, workspace: Path) -> "Config":
+    def load(cls, workspace: Path) -> Config:
         path = cls.path_for(workspace)
         if not path.exists():
             raise FileNotFoundError(
@@ -89,23 +89,23 @@ class Config:
         return cls.from_dict(raw)
 
     @classmethod
-    def load_or_default(cls, workspace: Path) -> "Config":
+    def load_or_default(cls, workspace: Path) -> Config:
         try:
             return cls.load(workspace)
         except FileNotFoundError:
             return cls()
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "Config":
+    def from_dict(cls, raw: dict[str, Any]) -> Config:
         version = int(raw.get("version", SCHEMA_VERSION))
         if version > SCHEMA_VERSION:
             raise ValueError(
                 f"config schema v{version} is newer than this codegraph (v{SCHEMA_VERSION})"
             )
         synthetic_raw = raw.get("synthetic", {}) or {}
-        known = {f for f in SyntheticRules.__slots__}
+        known = set(SyntheticRules.__slots__)
         synthetic = SyntheticRules(**{k: v for k, v in synthetic_raw.items() if k in known})
-        root_fields = {f for f in Root.__slots__}
+        root_fields = set(Root.__slots__)
         roots = [
             Root(**{k: v for k, v in entry.items() if k in root_fields})
             for entry in raw.get("roots", [])

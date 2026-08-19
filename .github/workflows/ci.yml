@@ -118,12 +118,26 @@ jobs:
         working-directory: codegraph
         run: make install
 
-      - name: Index this repository and build the graph
+      # .codegraph/config.json is committed, so a clone already knows its roots
+      # and only needs a build. `make init` would report them as existing and
+      # `make add-root` would (correctly) refuse the duplicate.
+      - name: Build the graph from the committed config
         working-directory: codegraph
         run: |
-          make init ROOT=../example_src
-          make add-root ROOT=./examples/marketd-client NAME=client
+          make build
           make status
+
+      # Cover the from-scratch path too, in a throwaway workspace, so the
+      # `init` -> `add-root` flow a new user follows stays tested.
+      - name: Bootstrap a fresh workspace from scratch
+        working-directory: codegraph
+        run: |
+          scratch="$(mktemp -d)"
+          make init      WORKSPACE="$scratch" ROOT="$PWD/../example_src" NAME=marketd
+          make add-root  WORKSPACE="$scratch" ROOT="$PWD/examples/marketd-client" NAME=client
+          make status    WORKSPACE="$scratch"
+          test -s "$scratch/.codegraph/graph.json"
+          rm -rf "$scratch"
 
       # The point of the whole project: the same input must produce the same
       # graph. A backend that sneaks in a timestamp, a set iteration order or
