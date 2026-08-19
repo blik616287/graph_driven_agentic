@@ -114,6 +114,11 @@ jobs:
         with:
           python-version: "3.13"
 
+      # This job runs on its own runner, so it needs the test runner too - the
+      # matrix job's install does not carry over.
+      - name: Install test tooling
+        run: python -m pip install --upgrade pip pytest
+
       - name: Install the graphify backend
         working-directory: codegraph
         run: make install
