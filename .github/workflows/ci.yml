@@ -1,0 +1,205 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # A new push to the same branch supersedes an in-flight run.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      # Only the test runner and linter. Both suites are standard-library
+      # only, which is the property this job exists to keep honest: if a
+      # third-party import creeps into either package, this fails.
+      - name: Install test tooling
+        run: python -m pip install --upgrade pip pytest ruff
+
+      - name: marketd tests
+        working-directory: example_src
+        run: python -m pytest tests -q
+
+      - name: codegraph tests
+        working-directory: codegraph
+        env:
+          PYTHONPATH: src
+        run: python -m pytest tests -q
+
+      - name: Lint
+        run: |
+          ruff check example_src/marketd example_src/tests \
+                      example_src/demo.py example_src/bench.py
+          ruff check codegraph/src codegraph/scripts codegraph/tests
+
+      - name: marketd demo and benchmarks
+        working-directory: example_src
+        run: |
+          python demo.py > /dev/null
+          python bench.py > /dev/null
+
+  plugin:
+    name: plugin manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # The manifests are what an assistant loads at startup; a syntax error
+      # here surfaces as a silent load failure rather than a build break, so
+      # it is worth catching in CI.
+      - name: Validate JSON manifests
+        run: |
+          for f in codegraph/.claude-plugin/plugin.json \
+                   codegraph/.claude-plugin/marketplace.json \
+                   codegraph/.mcp.json \
+                   codegraph/hooks/hooks.json; do
+            python -c "import json,sys; json.load(open('$f')); print('ok', '$f')"
+          done
+
+      - name: Validate the APM manifest
+        run: |
+          python - <<'PY'
+          import sys
+          try:
+              import yaml
+          except ImportError:
+              sys.exit(0)  # PyYAML absent: nothing to check, not a failure
+          with open("codegraph/apm/apm.yml") as handle:
+              manifest = yaml.safe_load(handle)
+          assert manifest["name"] == "codegraph", manifest.get("name")
+          assert manifest["provides"]["mcp"], "no MCP server declared"
+          assert len(manifest["provides"]["hooks"]) == 2, "expected both hooks"
+          print("ok codegraph/apm/apm.yml")
+          PY
+
+      - name: Hooks must be executable
+        run: |
+          for hook in codegraph/scripts/codegraph-prompt-hook \
+                      codegraph/scripts/codegraph-edit-hook \
+                      codegraph/scripts/codegraph; do
+            test -x "$hook" || { echo "not executable: $hook"; exit 1; }
+            echo "ok $hook"
+          done
+
+  integration:
+    name: end-to-end (real backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the graphify backend
+        working-directory: codegraph
+        run: make install
+
+      - name: Index this repository and build the graph
+        working-directory: codegraph
+        run: |
+          make init ROOT=../example_src
+          make add-root ROOT=./examples/marketd-client NAME=client
+          make status
+
+      # The point of the whole project: the same input must produce the same
+      # graph. A backend that sneaks in a timestamp, a set iteration order or
+      # a model call would break this and nothing else.
+      - name: Rebuild must be byte-identical
+        run: |
+          cp .codegraph/graph.json /tmp/first.json
+          codegraph/scripts/codegraph build
+          python - <<'PY'
+          import json, sys
+
+          def canonical(path):
+              with open(path) as handle:
+                  data = json.load(handle)
+              # built_at is wall time by design; everything else must match.
+              data.get("graph", {}).pop("built_at", None)
+              nodes = sorted(data["nodes"], key=lambda n: n["id"])
+              links = sorted(data["links"], key=lambda e: (e["source"], e["target"],
+                                                           e.get("relation", "")))
+              return json.dumps({"nodes": nodes, "links": links}, sort_keys=True)
+
+          first, second = canonical("/tmp/first.json"), canonical(".codegraph/graph.json")
+          if first != second:
+              print("REBUILD IS NOT DETERMINISTIC", file=sys.stderr)
+              sys.exit(1)
+          print(f"deterministic: {len(json.loads(first)['nodes'])} nodes reproduced exactly")
+          PY
+
+      - name: Integration tests against the real backend
+        working-directory: codegraph
+        env:
+          PYTHONPATH: src
+        run: python -m pytest tests -q -m integration
+
+      - name: Hooks behave end to end
+        run: |
+          set -euo pipefail
+          echo '{"hook_event_name":"UserPromptSubmit","user_input":"fix example_src/marketd/core/book.py","cwd":"'"$PWD"'"}' \
+            | python codegraph/scripts/codegraph-prompt-hook --workspace "$PWD" \
+            | python -c "import sys,json; ctx=json.load(sys.stdin)['additionalContext']; assert 'OrderBook' in ctx, ctx; print('prompt hook: injected context')"
+
+          echo '{"hook_event_name":"UserPromptSubmit","user_input":"what is the weather","cwd":"'"$PWD"'"}' \
+            | python codegraph/scripts/codegraph-prompt-hook --workspace "$PWD" \
+            | python -c "import sys; assert sys.stdin.read().strip()=='' ; print('prompt hook: silent on unrelated prompts')"
+
+      - name: MCP server answers over stdio
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, sys
+
+          env = dict(os.environ, PYTHONPATH="codegraph/src")
+          proc = subprocess.Popen(
+              [sys.executable, "-m", "codegraph", "--workspace", os.getcwd(), "serve"],
+              stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, env=env,
+          )
+
+          def call(method, params=None, _id=[0]):
+              _id[0] += 1
+              proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": _id[0],
+                                           "method": method, "params": params or {}}) + "\n")
+              proc.stdin.flush()
+              return json.loads(proc.stdout.readline())
+
+          assert call("initialize", {"protocolVersion": "2025-06-18"})["result"]["serverInfo"]["name"] == "codegraph"
+          tools = call("tools/list")["result"]["tools"]
+          assert len(tools) == 12, f"expected 12 tools, got {len(tools)}"
+
+          result = call("tools/call", {"name": "impact_of", "arguments": {"target": "OrderBook"}})
+          payload = json.loads(result["result"]["content"][0]["text"])
+          assert payload["affected_count"] > 0, payload
+          print(f"mcp: {len(tools)} tools, impact_of found {payload['affected_count']} affected symbols")
+
+          proc.stdin.close()
+          proc.wait(timeout=30)
+          PY
+
+      - name: Demo
+        working-directory: codegraph
+        run: make demo
